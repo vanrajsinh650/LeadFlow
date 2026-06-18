@@ -12,7 +12,7 @@ class LeadCreate(BaseModel):
     priority: str = Field("MEDIUM", max_length=50) # HIGH, MEDIUM, LOW
 
 class LeadResponse(BaseModel):
-    lead_id: uuid.UUID = Field(..., alias="id")
+    lead_id: uuid.UUID = Field(..., validation_alias="id", serialization_alias="lead_id")
     first_name: str
     last_name: str
     email: str
@@ -37,7 +37,7 @@ class LeadUpdateStatus(BaseModel):
     notes: Optional[str] = None
 
 class LeadStatusResponse(BaseModel):
-    lead_id: uuid.UUID = Field(..., alias="id")
+    lead_id: uuid.UUID = Field(..., validation_alias="id", serialization_alias="lead_id")
     status: str
     sla_expires_at: Optional[datetime] = None
     sla_violated: bool
@@ -52,7 +52,7 @@ class LeadReassign(BaseModel):
     reason: Optional[str] = None
 
 class LeadReassignResponse(BaseModel):
-    lead_id: uuid.UUID = Field(..., alias="id")
+    lead_id: uuid.UUID = Field(..., validation_alias="id", serialization_alias="lead_id")
     status: str
     assigned_agent_id: Optional[uuid.UUID] = None
     reassignment_count: int
@@ -76,7 +76,7 @@ class AuditLogResponse(BaseModel):
         from_attributes = True
 
 class LeadDetailResponse(BaseModel):
-    lead_id: uuid.UUID = Field(..., alias="id")
+    lead_id: uuid.UUID = Field(..., validation_alias="id", serialization_alias="lead_id")
     first_name: str
     last_name: str
     email: str
@@ -100,7 +100,7 @@ class LeadDetailResponse(BaseModel):
         populate_by_name = True
 
 class AgentResponse(BaseModel):
-    agent_id: uuid.UUID = Field(..., alias="id")
+    agent_id: uuid.UUID = Field(..., validation_alias="id", serialization_alias="agent_id")
     full_name: str
     email: str
     role: str
@@ -125,7 +125,7 @@ class AgentUpdateConfig(BaseModel):
     max_concurrent_leads: Optional[int] = None
 
 class AgentConfigResponse(BaseModel):
-    agent_id: uuid.UUID = Field(..., alias="id")
+    agent_id: uuid.UUID = Field(..., validation_alias="id", serialization_alias="agent_id")
     is_active: bool
     weight: int
     timezone: str

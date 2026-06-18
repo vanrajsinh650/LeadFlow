@@ -1,5 +1,9 @@
-import asyncio
 import os
+import sys
+# Add backend to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import asyncio
 import random
 from datetime import datetime, time, timedelta, timezone
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -10,14 +14,7 @@ from backend.app.models.user import User
 from backend.app.models.agent import Agent
 from backend.app.models.lead import Lead
 from backend.app.models.audit import LeadAuditLog
-
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/leadflow"
-)
-
-engine = create_async_engine(DATABASE_URL, echo=True)
-SessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+from backend.app.db.session import SessionLocal, engine
 
 async def seed():
     async with SessionLocal() as db:
@@ -25,9 +22,8 @@ async def seed():
 
         # 1. Clear existing data
         print("Clearing existing tables...")
-        await db.execute(Base.metadata.drop_all) # Will drop tables if needed, or we can drop sequentially
-        # Better: run metadata drop/create to start completely fresh
-        # Wait, since metadata drop_all is sync, we run run_sync on the connection
+        # run metadata drop/create to start completely fresh
+        # since metadata drop_all is sync, we run run_sync on the connection
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)

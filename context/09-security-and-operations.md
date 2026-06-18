@@ -25,26 +25,22 @@ This is the Single Source of Truth (SSOT) for application security protocols, se
 ---
 
 ## 3. Monitoring & Observability
-- **Health Checks:** A public `/health` endpoint returns JSON detailing the status of the database connection, Redis ping latency, and application version.
-- **Metrics Scraping:** Exposes standard Prometheus metrics at `/metrics` tracking:
-  - `lead_ingestion_total` (counter, labeled by status: success/failed)
-  - `routing_latency_seconds` (histogram)
-  - `sla_violations_total` (counter)
-  - `active_db_connections` (gauge)
-- **Distributed Tracing:** Implements OpenTelemetry middleware to trace requests traversing the API gateway down to specific SQL executions.
+- **Health Checks:** A public `/health` endpoint returns JSON detailing the status of the database connection, Redis ping latency, and application health.
+- **Application Logging:** Key operational events (SLA breaches, routing issues) are logged as structured JSON logs for audit purposes.
 
 ---
 
 ## 4. Operational Alerts
-Alert channels (Slack / PagerDuty) are notified immediately in the event of:
-- **`SEV-1: ROUTING_ENGINE_HALT`**: Ingestion or assignment loop fails for > 1% of leads over a 5-minute interval.
-- **`SEV-2: INFRASTRUCTURE_DOWN`**: Database or Redis fails connection checks.
-- **`SEV-3: HARD_ESCALATION`**: A lead breaches SLA for the 3rd time and enters the `ESCALATED` manager queue.
+Errors are raised via system logging in the event of:
+- **`ROUTING_ENGINE_HALT`**: Ingestion or assignment loop fails.
+- **`INFRASTRUCTURE_DOWN`**: Database or Redis connection failure.
+- **`HARD_ESCALATION`**: A lead breaches SLA for the 3rd time and enters the `ESCALATED` manager status.
 
 ---
 
 ## 5. Deployment Pipeline
-All deployments are automated via CI/CD workflows:
-- **Build Stage:** GitHub Actions triggers on merges to `main`. It runs the test suite, checks linters (black, ruff, mypy), and compiles the code.
-- **Containerization:** If tests pass, a Docker image is built and pushed to the elastic container registry.
-- **Continuous Delivery:** The image is deployed to Kubernetes staging/production environments using Helm Charts. Rolling updates are configured with a `maxUnavailable = 0` policy to ensure zero-downtime during deployments.
+All deployments are automated via docker-compose configurations:
+- **Build Stage:** GitHub Actions triggers on merges to `main` to run the test suite and verify lint rules.
+- **Containerization:** The backend and frontend are built as standard Docker images.
+- **Deployment:** Zero-downtime deployment is achieved by running standard `docker compose up -d` on the target VPS or app runner.
+

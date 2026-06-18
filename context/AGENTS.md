@@ -10,7 +10,8 @@ Before making any changes:
 3. Read [03-architecture.md](file:///c:/Users/Vanrajsinh/Desktop/DevVault/Building-Hub/LeadFlow/context/03-architecture.md)
 4. Read [04-database.md](file:///c:/Users/Vanrajsinh/Desktop/DevVault/Building-Hub/LeadFlow/context/04-database.md)
 5. Read [07-frontend-system.md](file:///c:/Users/Vanrajsinh/Desktop/DevVault/Building-Hub/LeadFlow/context/07-frontend-system.md) if modifying UI/frontend code
-6. Read file(s) related to the task
+6. Read [11-demo-scenarios.md](file:///c:/Users/Vanrajsinh/Desktop/DevVault/Building-Hub/LeadFlow/context/11-demo-scenarios.md)
+7. Read file(s) related to the task
 
 Never make assumptions without checking the relevant context file.
 
@@ -25,6 +26,7 @@ Never make assumptions without checking the relevant context file.
 - [08-engineering-rules.md](file:///c:/Users/Vanrajsinh/Desktop/DevVault/Building-Hub/LeadFlow/context/08-engineering-rules.md) → Engineering truth
 - [09-security-and-operations.md](file:///c:/Users/Vanrajsinh/Desktop/DevVault/Building-Hub/LeadFlow/context/09-security-and-operations.md) → Security truth
 - [10-decisions.md](file:///c:/Users/Vanrajsinh/Desktop/DevVault/Building-Hub/LeadFlow/context/10-decisions.md) → Architectural decision truth
+- [11-demo-scenarios.md](file:///c:/Users/Vanrajsinh/Desktop/DevVault/Building-Hub/LeadFlow/context/11-demo-scenarios.md) → Demonstration & verification truth
 
 If implementation conflicts with documentation:
 1. **STOP.**

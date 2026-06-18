@@ -5,29 +5,34 @@ This is the Single Source of Truth (SSOT) for code organization, conventions, te
 ---
 
 ## 1. Folder Structure
-The LeadFlow application conforms to a modular FastAPI design:
+The LeadFlow application conforms to a unified monorepo folder structure:
 
 ```
 leadflow/
-├── app/
-│   ├── api/                 # Endpoint routing logic
-│   │   ├── deps.py          # Dependency injection functions (DB session, Redis client, Auth)
-│   │   └── v1/              # API endpoints organized by domain
-│   ├── core/                # Configuration settings, security utilities, custom exception definitions
-│   ├── db/                  # Alembic migrations, engine configurations, session setup
-│   ├── models/              # SQLAlchemy model definitions
-│   ├── schemas/             # Pydantic schemas for request/response serialization
-│   ├── services/            # Pure domain logic (routing logic, deduplication, SLA manager)
-│   │   ├── routing.py       # Weighted Round Robin algorithm code
-│   │   ├── deduplication.py # Match checks and hash creation
-│   │   └── sla.py           # SLA breach worker and reassignment code
-│   └── main.py              # Application initialization
-├── tests/
-│   ├── conftest.py          # Pytest fixtures (DB sessions, mock Redis, client)
-│   ├── unit/                # Unit tests for domain services (e.g. routing.py)
-│   └── integration/         # Integration tests for endpoint workflows
-├── pyproject.toml           # Poetry / uv dependency configuration
-└── README.md
+├── backend/
+│   ├── app/                 # FastAPI application logic
+│   │   ├── api/             # Endpoint routing rules
+│   │   │   ├── deps.py      # Dependency injections
+│   │   │   └── v1/          # Versioned API routes
+│   │   ├── core/            # Global settings & config
+│   │   ├── db/              # DB session & migrations
+│   │   ├── models/          # Database ORM models
+│   │   ├── schemas/         # Pydantic serializer schemas
+│   │   ├── services/        # Routing, deduplication, and SLA services
+│   │   └── main.py          # FastAPI application entrypoint
+│   ├── tests/
+│   │   ├── conftest.py      # Pytest fixtures and settings
+│   │   ├── unit/            # Backend unit tests
+│   │   └── integration/     # Integration API tests
+│   └── pyproject.toml       # Backend python dependencies
+├── frontend/
+│   ├── src/                 # Next.js 15 app source folder
+│   ├── package.json         # Node.js dependencies configuration
+│   └── ...                  # Tailwind, TypeScript config files
+├── context/                 # Context rules files
+├── docker/                  # Dockerfiles and docker-compose templates
+├── scripts/                 # Utility automation scripts
+└── README.md                # General project info
 ```
 
 ---

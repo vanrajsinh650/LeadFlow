@@ -100,9 +100,10 @@ async def seed():
                     # 15 minutes for High, 60 min for Medium, 24 hrs for Low
                     duration = timedelta(minutes=15) if priority == "HIGH" else (timedelta(minutes=60) if priority == "MEDIUM" else timedelta(hours=24))
                     
-                    # Randomize some to be expired for demo purposes
+                    # Mark some leads as having a past SLA violation (but already resolved)
                     if random.random() < 0.15:
-                        sla_expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+                        # These leads had a breach but were already reassigned and given a fresh SLA
+                        sla_expires_at = datetime.now(timezone.utc) + duration
                         sla_violated = True
                         reassignment_count = random.randint(1, 2)
                     else:

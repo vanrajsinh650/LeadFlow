@@ -2,6 +2,8 @@ import asyncio
 import os
 import sys
 import time
+import uuid
+import time
 import subprocess
 import httpx
 from datetime import datetime, timedelta, timezone
@@ -90,7 +92,7 @@ async def run_scenario_1(client: httpx.AsyncClient):
     
     # Verify audit logs in database
     async with SessionLocal() as db:
-        stmt = select(LeadAuditLog).where(LeadAuditLog.lead_id == data["lead_id"])
+        stmt = select(LeadAuditLog).where(LeadAuditLog.lead_id == uuid.UUID(data["lead_id"]))
         res_logs = await db.execute(stmt)
         logs = res_logs.scalars().all()
         actions = [log.action for log in logs]
@@ -128,7 +130,7 @@ async def run_scenario_2(client: httpx.AsyncClient, first_agent_id: str):
     assert data["assigned_agent_id"] == first_agent_id
     
     async with SessionLocal() as db:
-        stmt = select(LeadAuditLog).where(LeadAuditLog.lead_id == data["lead_id"])
+        stmt = select(LeadAuditLog).where(LeadAuditLog.lead_id == uuid.UUID(data["lead_id"]))
         res_logs = await db.execute(stmt)
         logs = res_logs.scalars().all()
         actions = [log.action for log in logs]
@@ -143,7 +145,7 @@ async def run_scenario_3(first_lead_id: str, first_agent_id: str):
         past_time = datetime.now(timezone.utc) - timedelta(minutes=5)
         await db.execute(
             update(Lead)
-            .where(Lead.id == first_lead_id)
+            .where(Lead.id == uuid.UUID(first_lead_id))
             .values(sla_expires_at=past_time)
         )
         await db.commit()
@@ -154,7 +156,7 @@ async def run_scenario_3(first_lead_id: str, first_agent_id: str):
         await SLAService.check_and_process_sla_breaches(db)
         
         # Reload Lead 1 details
-        stmt = select(Lead).where(Lead.id == first_lead_id)
+        stmt = select(Lead).where(Lead.id == uuid.UUID(first_lead_id))
         res = await db.execute(stmt)
         lead = res.scalar_one()
         
@@ -165,7 +167,7 @@ async def run_scenario_3(first_lead_id: str, first_agent_id: str):
         print(f"Reassignment Counter: {lead.reassignment_count} / 3")
         
         # Check cooldown penalty on Agent A
-        stmt_agent = select(Agent).where(Agent.id == first_agent_id)
+        stmt_agent = select(Agent).where(Agent.id == uuid.UUID(first_agent_id))
         res_agent = await db.execute(stmt_agent)
         agent = res_agent.scalar_one()
         print(f"Agent A active status: {agent.is_active}")
@@ -173,7 +175,7 @@ async def run_scenario_3(first_lead_id: str, first_agent_id: str):
         assert lead.sla_violated is True
         assert lead.reassignment_count == 1
         assert agent.is_active is False  # Set to inactive as penalty
-        assert lead.assigned_agent_id != first_agent_id  # Reassigned to Agent B
+        assert lead.assigned_agent_id != uuid.UUID(first_agent_id)  # Reassigned to Agent B
 
 async def run_scenario_4(first_lead_id: str):
     print("\n--- SCENARIO 4: Hard Escalation Flow (Limit Reached) ---")
@@ -183,7 +185,7 @@ async def run_scenario_4(first_lead_id: str):
         past_time = datetime.now(timezone.utc) - timedelta(minutes=5)
         await db.execute(
             update(Lead)
-            .where(Lead.id == first_lead_id)
+            .where(Lead.id == uuid.UUID(first_lead_id))
             .values(reassignment_count=3, sla_expires_at=past_time)
         )
         await db.commit()
@@ -194,7 +196,7 @@ async def run_scenario_4(first_lead_id: str):
         await SLAService.check_and_process_sla_breaches(db)
         
         # Reload Lead 1 details
-        stmt = select(Lead).where(Lead.id == first_lead_id)
+        stmt = select(Lead).where(Lead.id == uuid.UUID(first_lead_id))
         res = await db.execute(stmt)
         lead = res.scalar_one()
         
@@ -207,7 +209,7 @@ async def run_scenario_4(first_lead_id: str):
         assert lead.assigned_agent_id is None
         
         # Verify Audit Log Escalation
-        stmt_log = select(LeadAuditLog).where(LeadAuditLog.lead_id == first_lead_id).order_by(LeadAuditLog.created_at.desc())
+        stmt_log = select(LeadAuditLog).where(LeadAuditLog.lead_id == uuid.UUID(first_lead_id)).order_by(LeadAuditLog.created_at.desc())
         res_log = await db.execute(stmt_log)
         last_log = res_log.scalars().first()
         print(f"Last Log Action: {last_log.action}")

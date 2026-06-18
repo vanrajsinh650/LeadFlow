@@ -22,3 +22,18 @@ class LeadResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class LeadUpdateStatus(BaseModel):
+    status: str = Field(..., max_length=50)
+    notes: Optional[str] = None
+
+class LeadStatusResponse(BaseModel):
+    lead_id: uuid.UUID
+    status: str
+    sla_expires_at: Optional[datetime] = None
+    sla_violated: bool
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+

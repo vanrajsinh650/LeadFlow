@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, use } from "react";
+import React, { useState, useEffect, use } from "react";
 import Link from "next/link";
 
 interface AuditLog {
@@ -13,7 +13,7 @@ interface AuditLog {
 }
 
 interface LeadDetail {
-  id: string;
+  lead_id: string;
   first_name: string;
   last_name: string;
   email: string;
@@ -32,64 +32,38 @@ interface LeadDetail {
   audit_logs: AuditLog[];
 }
 
-const mockLeadDetails: Record<string, LeadDetail> = {
-  "4a7b3c20-80d4-4c4f-bf14-a9572efde0c2": {
-    id: "4a7b3c20-80d4-4c4f-bf14-a9572efde0c2",
-    first_name: "James",
-    last_name: "Johnson",
-    email: "james@example.com",
-    phone: "5550101",
-    source: "web_form",
-    priority: "HIGH",
-    status: "ASSIGNED",
-    assigned_agent_id: "agent-1",
-    assigned_agent_name: "Jane Smith",
-    sla_expires_at: "2026-06-18 20:04",
-    sla_violated: false,
-    is_duplicate: false,
-    original_lead_id: null,
-    reassignment_count: 0,
-    created_at: "2026-06-18 19:49",
-    audit_logs: [
-      { id: "log-1", action: "INGEST", old_status: null, new_status: "UNASSIGNED", notes: "Lead ingested via website form.", created_at: "2026-06-18 19:49:06" },
-      { id: "log-2", action: "ASSIGN", old_status: "UNASSIGNED", new_status: "ASSIGNED", notes: "Automated Round Robin routing.", created_at: "2026-06-18 19:49:08" },
-    ],
-  },
-  "9d8e7f60-1234-5678-abcd-1234567890ab": {
-    id: "9d8e7f60-1234-5678-abcd-1234567890ab",
-    first_name: "Mary",
-    last_name: "Brown",
-    email: "mary@example.com",
-    phone: "5550102",
-    source: "google_ads",
-    priority: "MEDIUM",
-    status: "ESCALATED",
-    assigned_agent_id: null,
-    assigned_agent_name: null,
-    sla_expires_at: null,
-    sla_violated: true,
-    is_duplicate: true,
-    original_lead_id: "4a7b3c20-80d4-4c4f-bf14-a9572efde0c2",
-    reassignment_count: 3,
-    created_at: "2026-06-17 14:30",
-    audit_logs: [
-      { id: "log-10", action: "INGEST_DUPLICATE", old_status: null, new_status: "UNASSIGNED", notes: "Duplicate parameters detected.", created_at: "2026-06-17 14:30:00" },
-      { id: "log-11", action: "ESCALATE", old_status: "ASSIGNED", new_status: "ESCALATED", notes: "SLA breach threshold reached 3/3 times.", created_at: "2026-06-17 16:30:00" },
-    ],
-  },
-};
-
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
   const leadId = unwrappedParams.id;
-  const initialLead = mockLeadDetails[leadId] || mockLeadDetails["4a7b3c20-80d4-4c4f-bf14-a9572efde0c2"];
 
-  const [lead, setLead] = useState<LeadDetail>(initialLead);
-  const [statusInput, setStatusInput] = useState(lead.status);
+  const [lead, setLead] = useState<LeadDetail | null>(null);
+  const [statusInput, setStatusInput] = useState("");
   const [notesInput, setNotesInput] = useState("");
+  const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Fetch lead detail from backend API
+  async function fetchLead() {
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/leads/${leadId}`);
+      if (!res.ok) {
+        throw new Error("Failed to load lead details from backend");
+      }
+      const json = await res.json();
+      setLead(json);
+      setStatusInput(json.status);
+    } catch (err: any) {
+      setErrorMsg(err.message || "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchLead();
+  }, [leadId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,35 +74,73 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     setErrorMsg(null);
     setUpdating(true);
 
-    // Simulate API Network Request
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    const oldStatus = lead.status;
-    const isSlaStopped = ["CONTACTED", "IN_PROGRESS", "CLOSED_WON", "CLOSED_LOST"].includes(statusInput);
-
-    const updatedLead: LeadDetail = {
-      ...lead,
-      status: statusInput,
-      sla_expires_at: isSlaStopped ? null : lead.sla_expires_at,
-      audit_logs: [
-        {
-          id: `log-${Date.now()}`,
-          action: "STATUS_CHANGE",
-          old_status: oldStatus,
-          new_status: statusInput,
-          notes: notesInput || "Manual status change.",
-          created_at: new Date().toISOString().replace("T", " ").substring(0, 19),
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/leads/${leadId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
         },
-        ...lead.audit_logs,
-      ],
-    };
+        body: JSON.stringify({
+          status: statusInput,
+          notes: notesInput || "Manual status change via interface."
+        })
+      });
 
-    setLead(updatedLead);
-    setNotesInput("");
-    setUpdating(false);
-    setToastMsg("Lead status updated successfully.");
-    setTimeout(() => setToastMsg(null), 3000);
+      if (!res.ok) {
+        throw new Error("Failed to save status update to backend server");
+      }
+
+      // Re-fetch lead details to reload timelines and fields
+      await fetchLead();
+      setNotesInput("");
+      setToastMsg("Lead status updated successfully.");
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to update status");
+    } finally {
+      setUpdating(false);
+    }
   };
+
+  const formatTime = (timeStr: string | null) => {
+    if (!timeStr) return "SLA Clock Inactive";
+    try {
+      const dt = new Date(timeStr);
+      return dt.toISOString().replace("T", " ").substring(0, 16);
+    } catch {
+      return timeStr;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+        <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent animate-spin rounded-full"></div>
+        <p className="text-slate-500 font-semibold text-sm">Loading lead record details...</p>
+      </div>
+    );
+  }
+
+  if (errorMsg && !lead) {
+    return (
+      <div className="bg-rose-50 border border-rose-200 text-rose-800 p-6 rounded-lg max-w-2xl mx-auto mt-8 shadow-sm">
+        <h3 className="font-bold text-base flex items-center gap-2">
+          <svg className="h-5 w-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          Record Not Found
+        </h3>
+        <p className="text-sm text-rose-700 mt-2">{errorMsg}</p>
+        <div className="mt-4">
+          <Link href="/leads" className="text-sm font-semibold text-rose-600 underline">
+            ← Return to Leads list
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!lead) return null;
 
   return (
     <div className="space-y-8">
@@ -152,7 +164,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
               {lead.first_name} {lead.last_name}
             </h1>
-            <p className="text-slate-500 text-sm mt-1">Lead ID: {lead.id}</p>
+            <p className="text-slate-500 text-sm mt-1">Lead ID: {lead.lead_id}</p>
           </div>
           <div className="flex gap-3">
             {lead.is_duplicate && (
@@ -206,7 +218,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               <div>
                 <span className="text-slate-400 font-medium block">SLA Expiry Time</span>
-                <span className="text-slate-900 font-semibold">{lead.sla_expires_at || "SLA Clock Inactive"}</span>
+                <span className="text-slate-900 font-semibold">{formatTime(lead.sla_expires_at)}</span>
               </div>
               <div>
                 <span className="text-slate-400 font-medium block">Reassignment Counter</span>
@@ -214,7 +226,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               <div>
                 <span className="text-slate-400 font-medium block">SLA Violated Status</span>
-                <span className={`font-semibold ${lead.sla_violated ? "text-rose-600" : "text-slate-900"}`}>
+                <span className={`font-semibold ${lead.sla_violated ? "text-rose-600 font-bold" : "text-slate-900"}`}>
                   {lead.sla_violated ? "YES" : "NO"}
                 </span>
               </div>
@@ -232,17 +244,23 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           {/* Audit Timeline Logs */}
           <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
             <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4">Audit History Log</h2>
-            <div className="relative border-l border-slate-100 pl-4 space-y-6">
+            <div className="relative border-l border-slate-200 pl-4 space-y-6">
               {lead.audit_logs.map((log) => (
                 <div key={log.id} className="relative">
-                  <div className="absolute -left-[21px] top-1.5 bg-blue-600 h-2 w-2 rounded-full ring-4 ring-white"></div>
-                  <div className="text-xs text-slate-400">{log.created_at}</div>
+                  <div className={`absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-white ${
+                    log.action.includes("ESCALATE") ? "bg-rose-600" :
+                    log.action.includes("REASSIGN") ? "bg-amber-500" : "bg-blue-600"
+                  }`}></div>
+                  <div className="text-xs text-slate-400">{formatTime(log.created_at)}</div>
                   <div className="text-sm font-semibold text-slate-900 mt-0.5">{log.action}</div>
                   <div className="text-sm text-slate-500 mt-1">
                     {log.notes} {log.old_status && `(${log.old_status} → ${log.new_status})`}
                   </div>
                 </div>
               ))}
+              {lead.audit_logs.length === 0 && (
+                <p className="text-xs text-slate-400">No logs found for this lead record.</p>
+              )}
             </div>
           </div>
         </div>

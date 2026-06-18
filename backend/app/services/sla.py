@@ -35,7 +35,6 @@ class SLAService:
         for lead in breached_leads:
             old_agent_id = lead.assigned_agent_id
             lead.sla_violated = True
-            lead.reassignment_count += 1
 
             # 1. Apply Cooldown Penalty to current agent
             if old_agent_id:
@@ -48,16 +47,15 @@ class SLAService:
                     db.add(agent)
 
             # 2. Reassignment or Escalation choice
-            if lead.reassignment_count <= 3:
-                # Revoke assignment
-                lead.assigned_agent_id = None
-                
+            if lead.reassignment_count < 3:
                 # Attempt WRR Reassignment
+                lead.assigned_agent_id = None
                 new_agent = await AssignmentService.assign_lead(db, lead)
                 if new_agent:
                     lead.assigned_agent_id = new_agent.id
                     lead.status = "ASSIGNED"
                     lead.sla_expires_at = datetime.now(timezone.utc) + get_sla_duration(lead.priority)
+                    lead.reassignment_count += 1
                     
                     # Log reassignment event
                     audit_log = LeadAuditLog(

@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 interface AgentRecord {
-  id: string;
+  agent_id: string;
   full_name: string;
   email: string;
   role: "ADMIN" | "MANAGER" | "AGENT";
@@ -16,19 +16,12 @@ interface AgentRecord {
   current_load: number;
 }
 
-const initialAgents: AgentRecord[] = [
-  { id: "1", full_name: "Jane Smith", email: "jane@leadflow.com", role: "AGENT", is_active: true, weight: 8, timezone: "America/New_York", shift_start: "09:00", shift_end: "17:00", max_concurrent_leads: 12, current_load: 4 },
-  { id: "2", full_name: "Bob Jones", email: "bob@leadflow.com", role: "AGENT", is_active: true, weight: 5, timezone: "UTC", shift_start: "09:00", shift_end: "17:00", max_concurrent_leads: 10, current_load: 3 },
-  { id: "3", full_name: "Alice Miller", email: "alice@leadflow.com", role: "AGENT", is_active: true, weight: 3, timezone: "Europe/London", shift_start: "09:00", shift_end: "17:00", max_concurrent_leads: 10, current_load: 1 },
-  { id: "4", full_name: "Charlie Davis", email: "charlie@leadflow.com", role: "AGENT", is_active: true, weight: 2, timezone: "Asia/Kolkata", shift_start: "09:00", shift_end: "17:00", max_concurrent_leads: 8, current_load: 0 },
-  { id: "5", full_name: "Eve Garcia", email: "eve@leadflow.com", role: "AGENT", is_active: false, weight: 6, timezone: "America/New_York", shift_start: "09:00", shift_end: "17:00", max_concurrent_leads: 10, current_load: 0 },
-  { id: "6", full_name: "Frank Wilson", email: "frank@leadflow.com", role: "AGENT", is_active: false, weight: 4, timezone: "UTC", shift_start: "09:00", shift_end: "17:00", max_concurrent_leads: 10, current_load: 0 },
-];
-
 export default function AgentsPage() {
-  const [agents, setAgents] = useState<AgentRecord[]>(initialAgents);
+  const [agents, setAgents] = useState<AgentRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [loadingAgentId, setLoadingAgentId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -37,34 +30,92 @@ export default function AgentsPage() {
     }, 3000);
   };
 
+  async function fetchAgents() {
+    try {
+      const res = await fetch("http://localhost:8000/api/v1/agents");
+      if (!res.ok) {
+        throw new Error("Failed to load agents list from backend gateway");
+      }
+      const json = await res.json();
+      setAgents(json);
+      setErrorMsg(null);
+    } catch (err: any) {
+      setErrorMsg(err.message || "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchAgents();
+  }, []);
+
   const toggleAgentActive = async (id: string, currentStatus: boolean) => {
     setLoadingAgentId(id);
-    
-    // Simulate async network request
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/agents/${id}/routing-config`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          is_active: !currentStatus
+        })
+      });
 
-    setAgents((prev) =>
-      prev.map((agent) =>
-        agent.id === id ? { ...agent, is_active: !currentStatus } : agent
-      )
-    );
+      if (!res.ok) {
+        throw new Error("Failed to toggle agent active status");
+      }
 
-    setLoadingAgentId(null);
-    showToast(`Agent availability successfully updated.`);
+      await fetchAgents();
+      showToast(`Agent availability successfully updated.`);
+    } catch (err: any) {
+      showToast(err.message || "Failed to update availability");
+    } finally {
+      setLoadingAgentId(null);
+    }
   };
 
   const updateAgentWeight = async (id: string, weight: number) => {
     setLoadingAgentId(id);
-    
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/agents/${id}/routing-config`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          weight: weight
+        })
+      });
 
-    setAgents((prev) =>
-      prev.map((agent) => (agent.id === id ? { ...agent, weight } : agent))
-    );
+      if (!res.ok) {
+        throw new Error("Failed to update agent routing weight");
+      }
 
-    setLoadingAgentId(null);
-    showToast(`Agent weight threshold adjusted.`);
+      await fetchAgents();
+      showToast(`Agent weight threshold adjusted.`);
+    } catch (err: any) {
+      showToast(err.message || "Failed to update weight");
+    } finally {
+      setLoadingAgentId(null);
+    }
   };
+
+  const formatShiftTime = (timeStr: string) => {
+    // timeStr is usually "HH:MM:SS" or "HH:MM"
+    if (!timeStr) return "";
+    return timeStr.substring(0, 5);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+        <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent animate-spin rounded-full"></div>
+        <p className="text-slate-500 font-semibold text-sm">Loading agents list...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -81,6 +132,12 @@ export default function AgentsPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <span className="text-sm font-semibold">{toastMessage}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-lg text-sm font-semibold">
+          Error loading agents: {errorMsg}
         </div>
       )}
 
@@ -101,13 +158,13 @@ export default function AgentsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {agents.map((agent) => (
-                <tr key={agent.id} className="hover:bg-slate-50/50 transition-colors">
+                <tr key={agent.agent_id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="py-4 px-6">
                     <div className="font-semibold text-slate-900">{agent.full_name}</div>
                     <div className="text-slate-400 text-xs">{agent.email}</div>
                   </td>
                   <td className="py-4 px-6 text-slate-600">
-                    {agent.shift_start} - {agent.shift_end}
+                    {formatShiftTime(agent.shift_start)} - {formatShiftTime(agent.shift_end)}
                   </td>
                   <td className="py-4 px-6 text-slate-600">{agent.timezone}</td>
                   <td className="py-4 px-6 text-slate-600">
@@ -129,28 +186,28 @@ export default function AgentsPage() {
                   <td className="py-4 px-6">
                     <select
                       value={agent.weight}
-                      disabled={loadingAgentId === agent.id}
-                      onChange={(e) => updateAgentWeight(agent.id, intval(e.target.value))}
+                      disabled={loadingAgentId === agent.agent_id}
+                      onChange={(e) => updateAgentWeight(agent.agent_id, intval(e.target.value))}
                       className="px-2 py-1 border border-slate-200 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-600 disabled:opacity-50"
                     >
-                      {[...Array(10)].map((_, i) => (
-                        <option key={i + 1} value={i + 1}>
-                          {i + 1}
+                      {[...Array(11)].map((_, i) => (
+                        <option key={i} value={i}>
+                          {i}
                         </option>
                       ))}
                     </select>
                   </td>
                   <td className="py-4 px-6 text-right">
                     <button
-                      disabled={loadingAgentId === agent.id}
-                      onClick={() => toggleAgentActive(agent.id, agent.is_active)}
+                      disabled={loadingAgentId === agent.agent_id}
+                      onClick={() => toggleAgentActive(agent.agent_id, agent.is_active)}
                       className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-600/20 disabled:opacity-50 ${
                         agent.is_active
                           ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 ring-1 ring-inset ring-emerald-600/10"
                           : "bg-slate-50 text-slate-600 hover:bg-slate-100 ring-1 ring-inset ring-slate-200"
                       }`}
                     >
-                      {loadingAgentId === agent.id ? (
+                      {loadingAgentId === agent.agent_id ? (
                         <span className="h-3 w-3 border-2 border-slate-400 border-t-transparent animate-spin rounded-full"></span>
                       ) : agent.is_active ? (
                         "Active"
@@ -161,6 +218,13 @@ export default function AgentsPage() {
                   </td>
                 </tr>
               ))}
+              {agents.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-500">
+                    No agents defined.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -171,5 +235,5 @@ export default function AgentsPage() {
 
 // Simple helper to parse integers safely
 function intval(val: string): number {
-  return parseInt(val, 10) || 1;
+  return parseInt(val, 10) || 0;
 }

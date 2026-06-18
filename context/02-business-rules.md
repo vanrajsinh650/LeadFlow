@@ -58,7 +58,7 @@ When an agent fails to meet their SLA obligations, the system automatically inte
 
 ### SLA Reassignment Trigger
 - **Action:** Immediately upon an SLA breach, the lead is revoked from the current agent.
-- **Cooldown Penalty:** The failing agent is automatically marked as `Inactive` or placed in a "cooldown" state for 1 hour to prevent them from receiving additional leads until they resolve outstanding tasks.
+- **Cooldown Penalty:** The failing agent is automatically marked as `Inactive` (setting `is_active = False`) to place them on cooldown and prevent them from receiving new leads.
 - **Re-Routing:** The lead is returned to the active queue and routed to the next eligible agent via the Weighted Round Robin engine.
-- **Reassignment Limit:** A single lead can be reassigned a maximum of **3 times**.
-- **Escalation Exception:** If a lead breaches SLA for the 3rd time, it is flagged as `Escalated` and assigned directly to the `Sales Manager` role for manual intervention, bypassing all automated WRR routing.
+- **Reassignment Limit:** A single lead can be reassigned a maximum of **3 times** (the database enforces `reassignment_count >= 0 AND reassignment_count <= 3`).
+- **Escalation Exception:** If a lead breaches its SLA while its `reassignment_count` is 3, it is flagged as `ESCALATED`, its assigned agent is set to `None`, its active SLA timer is terminated, and a critical manager alert audit log (`ESCALATE`) is recorded for manual intervention.

@@ -13,9 +13,30 @@ from backend.app.services.weighted_round_robin import WeightedRoundRobinRouter
 
 logger = logging.getLogger(__name__)
 
-# Configure Redis connection
+# Configure Redis connection with graceful fallback
+class InMemoryRedisMock:
+    def __init__(self):
+        self._store = {}
+
+    def get(self, name: str):
+        return self._store.get(name)
+
+    def set(self, name: str, value: str | int):
+        self._store[name] = str(value)
+
+    def ping(self):
+        return True
+
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+try:
+    # Set a short connection timeout so it fails fast if offline
+    redis_client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5)
+    redis_client.ping()
+    print("[Cache] Redis is reachable. Routing engine using Redis cache.")
+except Exception:
+    print("[Cache] Redis is unreachable. Routing engine falling back to in-memory state.")
+    redis_client = InMemoryRedisMock()
+
 
 class AssignmentService:
     @staticmethod

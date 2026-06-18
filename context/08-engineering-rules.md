@@ -87,4 +87,6 @@ No code change is complete without unit and integration testing.
 ## 6. Commit Message Rules
 - **Prohibited Prefixes:** Do **NOT** use conventional commit prefixes or semantic tags (such as `feat:`, `docs:`, `fix:`, `error:`, or `feat..`) in commit messages.
 - **Message Content:** Commit messages must be plain, natural language descriptions that explain what was changed and completed in the project.
+- **Atomic Commits & Pushes:** Commit and push changes immediately after finishing any small, distinct unit of work (e.g. creating a single file, adding a specific configuration, or implementing a single endpoint/test) rather than aggregating a large volume of changes into a single bulk commit.
+
 

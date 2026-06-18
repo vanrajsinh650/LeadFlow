@@ -33,6 +33,7 @@ If implementation conflicts with documentation:
 
 ## Non-Negotiable Rules
 - Never use commit prefixes like `feat:`, `docs:`, `fix:`, `error:`, or `feat..` in commit messages. Write plain, descriptive commit messages explaining what was changed and completed.
+- Commit and push changes to GitHub immediately upon completing any small, distinct unit of work, ensuring commits remain small, atomic, and descriptive.
 - Never invent APIs.
 - Never invent database fields.
 - Never invent business rules.

@@ -7,6 +7,7 @@ from backend.app.db.base import Base
 from backend.app.models.user import User
 from backend.app.models.agent import Agent
 from backend.app.models.lead import Lead
+from backend.app.models.audit import LeadAuditLog
 
 # Use in-memory SQLite for testing check constraints
 @pytest.fixture(scope="function")

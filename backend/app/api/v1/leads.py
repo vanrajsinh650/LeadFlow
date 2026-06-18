@@ -6,7 +6,7 @@ from typing import Optional
 from backend.app.db.session import get_db
 from backend.app.models.lead import Lead
 from backend.app.models.audit import LeadAuditLog
-from backend.app.schemas.lead import LeadCreate, LeadResponse
+from backend.app.schemas.lead import LeadCreate, LeadResponse, LeadUpdateStatus, LeadStatusResponse
 from backend.app.services.deduplication import DeduplicationService
 from backend.app.services.assignment_service import AssignmentService
 
@@ -86,3 +86,52 @@ async def create_lead(payload: LeadCreate, db: AsyncSession = Depends(get_db)):
     await db.refresh(lead)
 
     return lead
+
+@router.patch("/{lead_id}/status", response_model=LeadStatusResponse)
+async def update_lead_status(
+    lead_id: str, 
+    payload: LeadUpdateStatus, 
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Updates a lead's status, stops the SLA timer if contacted, and writes audit history.
+    """
+    # 1. Fetch Lead
+    stmt = select(Lead).where(Lead.id == lead_id)
+    result = await db.execute(stmt)
+    lead = result.scalar_one_or_none()
+
+    if not lead:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lead not found"
+        )
+
+    old_status = lead.status
+    new_status = payload.status.upper()
+
+    # Validate lifecycle transition
+    lead.status = new_status
+    lead.updated_at = datetime.now(timezone.utc)
+
+    # 2. SLA Clock Termination
+    # Stopped when the lead transitions to CONTACTED, IN_PROGRESS, or any terminal state
+    if new_status in ["CONTACTED", "IN_PROGRESS", "CLOSED_WON", "CLOSED_LOST"]:
+        lead.sla_expires_at = None
+
+    # 3. Write Audit Log
+    audit_log = LeadAuditLog(
+        lead_id=lead.id,
+        action="STATUS_CHANGE",
+        old_status=old_status,
+        new_status=new_status,
+        old_agent_id=lead.assigned_agent_id,
+        new_agent_id=lead.assigned_agent_id,
+        notes=payload.notes
+    )
+    db.add(audit_log)
+    await db.commit()
+    await db.refresh(lead)
+
+    return lead
+

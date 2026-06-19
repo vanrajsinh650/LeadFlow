@@ -1,0 +1,65 @@
+========================================================================
+             LEADFLOW - SALES OPERATIONS & LEAD ROUTING ENGINE
+========================================================================
+
+Project Name:          LeadFlow
+Category:              AI Executive Assignment & Project Implementation
+Primary Repository:    https://github.com/vanrajsinh650/LeadFlow
+Primary Author:        Antigravity AI Coding Assistant
+Submission Date:       June 19, 2026
+
+------------------------------------------------------------------------
+EXECUTIVE OVERVIEW & PROJECT SUMMARY
+------------------------------------------------------------------------
+LeadFlow is a high-performance, automated sales lead distribution and 
+SLA management engine. It automatically ingests leads from marketing 
+webhooks, matches them against historical databases to prevent duplicate 
+contact ownership, routes unique contacts using stateful Weighted Round 
+Robin criteria, and actively tracks response deadlines with automated 
+agent cooling penalties.
+
+Key Operational Services:
+1. STATEFUL WEIGHTED ROUND ROBIN: Routes leads based on agent weights 
+   (scale 0-10), timezone matching, and concurrency capacity metrics.
+2. AUTOMATIC DEDUPLICATION: Bypasses routing loops to send returning 
+   contacts back to active original owners within a 30-day window.
+3. SLA BACKGROUND ENFORCEMENT: Active monitor loop checks assignments 
+   every 10s. If breached, it puts agents on offline cooldown and 
+   automatically reassigns leads up to 3 times before hard-escalating.
+
+------------------------------------------------------------------------
+SYSTEM PATHS & ARTIFACT FILES
+------------------------------------------------------------------------
+- Comprehensive PDF Report: docs/LeadFlow_AI_Executive_Report.pdf
+  (Contains fully-documented architecture layouts, core algorithms, 
+   UI screenshots, scenario validation results, and onboarding steps)
+- System Architecture Diagram: docs/demo/architecture.png
+- UI Screenshot Previews:
+  * Operations Dashboard: docs/demo/dashboard.png
+  * Leads Database Grid: docs/demo/leads.png
+  * Agents Weights Slider: docs/demo/agents.png
+  * Lead Lifecycle Timeline: docs/demo/lead_details.png
+
+------------------------------------------------------------------------
+ONBOARDING & TEST RUN STEPS (UNDER 5 SECONDS)
+------------------------------------------------------------------------
+1. Clone Repository:
+   git clone https://github.com/vanrajsinh650/LeadFlow.git
+   cd LeadFlow
+
+2. Install Requirements:
+   pip install -r backend/requirements.txt
+   cd frontend && npm install && cd ..
+
+3. Seed database:
+   python scripts/seed_db.py
+
+4. Run Scenario Verification:
+   python scripts/run_scenarios.py
+
+5. Run Local Servers:
+   # Terminal 1: Backend API
+   python -m uvicorn backend.app.main:app --port 8000 --reload
+   # Terminal 2: Next.js UI Client
+   cd frontend && npm run dev
+========================================================================

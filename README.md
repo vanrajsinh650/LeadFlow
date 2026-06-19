@@ -9,6 +9,7 @@ LeadFlow is a production-grade lead routing engine that ingests inbound sales le
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [UI Previews](#ui-previews)
 - [System Workflow](#system-workflow)
 - [Lead Lifecycle](#lead-lifecycle)
 - [SLA Enforcement Flow](#sla-enforcement-flow)
@@ -54,6 +55,24 @@ graph TD
     style Backend fill:#1e293b,stroke:#4f46e5,color:#fff
     style Storage fill:#312e81,stroke:#6366f1,color:#fff
 ```
+
+---
+
+## UI Previews
+
+Here is a preview of the premium Sales Operations Dashboard and Management panels:
+
+### 📊 Dashboard Page
+![Dashboard Preview](docs/demo/dashboard.png)
+
+### 📁 Leads Directory
+![Leads Preview](docs/demo/leads.png)
+
+### 👥 Agents Directory
+![Agents Preview](docs/demo/agents.png)
+
+### ℹ️ Lead Details & Timeline
+![Lead Details Preview](docs/demo/lead_details.png)
 
 ---
 

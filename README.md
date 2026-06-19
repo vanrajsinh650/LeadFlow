@@ -24,49 +24,35 @@ LeadFlow is a production-grade lead routing engine that ingests inbound sales le
 ## Architecture Overview
 
 ```mermaid
-graph TB
+graph TD
     subgraph External["External Sources"]
-        WEB["Web Forms"]
-        CRM["CRM Integrations"]
-        API_EXT["Partner APIs"]
+        FE["Next.js Client (:3000)"]
+        API_EXT["API Ingest (Webhooks/CRM)"]
     end
 
-    subgraph Backend["FastAPI Backend :8000"]
+    subgraph Backend["FastAPI Backend Core (:8000)"]
         GW["REST API Gateway"]
         DD["Deduplication Service"]
-        WRR["Weighted Round Robin Engine"]
+        WRR["Weighted Round Robin Router"]
         SLA["SLA Monitor Worker"]
-        AUDIT["Audit Logger"]
     end
 
     subgraph Storage["Data Layer"]
-        PG["PostgreSQL / SQLite"]
+        PG["PostgreSQL / SQLite DB"]
         RD["Redis / In-Memory Cache"]
     end
 
-    subgraph Frontend["Next.js Frontend :3000"]
-        DASH["Dashboard Page"]
-        LEADS["Leads Management"]
-        AGENTS["Agents Directory"]
-        DETAIL["Lead Detail + Timeline"]
-    end
-
-    WEB --> GW
-    CRM --> GW
-    API_EXT --> GW
+    FE -->|HTTP Requests| GW
+    API_EXT -->|Ingest Payload| GW
     GW --> DD
     DD -->|"New Lead"| WRR
-    DD -->|"Duplicate"| AUDIT
     WRR --> PG
     WRR --> RD
-    SLA -->|"Every 10s"| PG
-    AUDIT --> PG
-    Frontend -->|"HTTP Fetch"| GW
+    SLA -->|"Scan breaches"| PG
 
-    style External fill:#1a1a2e,stroke:#e94560,color:#fff
-    style Backend fill:#16213e,stroke:#0f3460,color:#fff
-    style Storage fill:#0f3460,stroke:#533483,color:#fff
-    style Frontend fill:#533483,stroke:#e94560,color:#fff
+    style External fill:#0f172a,stroke:#3b82f6,color:#fff
+    style Backend fill:#1e293b,stroke:#4f46e5,color:#fff
+    style Storage fill:#312e81,stroke:#6366f1,color:#fff
 ```
 
 ---
@@ -77,42 +63,23 @@ This is the end-to-end flow from when a lead enters the system to when it reache
 
 ```mermaid
 flowchart TD
-    A["📥 Lead Arrives via POST /api/v1/leads"] --> B{"🔍 Duplicate Check"}
+    Start["📥 Lead Ingested"] --> DupCheck{"🔍 Duplicate Check"}
+    
+    DupCheck -->|"Match Found"| RouteOwner["🔁 Route directly to original owner (if active)"]
+    DupCheck -->|"No Match / Inactive Owner"| WRR["⚖️ Route via Weighted Round Robin"]
 
-    B -->|"Email or Phone matches existing lead"| C["🔁 Route to Original Owner"]
-    B -->|"New unique contact"| D["⚖️ Weighted Round Robin Selection"]
+    RouteOwner --> Assign["📝 Status: ASSIGNED\n(SLA Clock Starts)"]
+    WRR --> Assign
 
-    C --> E["📝 Status: ASSIGNED"]
-    D --> F{"Any Eligible Agents?"}
-
-    F -->|"Yes"| G["Filter by: Active + In-Shift + Under Capacity"]
-    F -->|"No"| H["📝 Status: UNASSIGNED"]
-
-    G --> I["Select Agent by WRR Weight Credits"]
-    I --> E
-
-    E --> J["⏱️ SLA Timer Started"]
-    J --> K{"Agent Responds Before Deadline?"}
-
-    K -->|"Yes"| L["📝 Status: CONTACTED → IN_PROGRESS"]
-    L --> M{"Deal Outcome"}
-    M -->|"Won"| N["✅ CLOSED_WON"]
-    M -->|"Lost"| O["❌ CLOSED_LOST"]
-
-    K -->|"No — SLA Breached"| P["⚠️ Cooldown Penalty Applied"]
-    P --> Q{"Reassignment Count < 3?"}
-
-    Q -->|"Yes"| R["🔄 Reassign via WRR"]
-    R --> E
-    Q -->|"No"| S["🚨 ESCALATED to Manager"]
-
-    style A fill:#0d1b2a,stroke:#1b263b,color:#e0e1dd
-    style E fill:#1b4332,stroke:#2d6a4f,color:#fff
-    style H fill:#6c757d,stroke:#495057,color:#fff
-    style N fill:#2d6a4f,stroke:#40916c,color:#fff
-    style O fill:#6c757d,stroke:#495057,color:#fff
-    style S fill:#9d0208,stroke:#d00000,color:#fff
-    style P fill:#e36414,stroke:#f77f00,color:#fff
+    Assign --> SLA{"⏱️ SLA Responded?"}
+    
+    SLA -->|"Yes (Status: CONTACTED)"| Complete["💼 Move through sales pipeline\n(CLOSED_WON / CLOSED_LOST)"]
+    SLA -->|"No (SLA Expired)"| Reassign{"🔄 Reassignments < 3?"}
+    
+    Reassign -->|"Yes"| Cooldown["⚠️ Penalize Agent (is_active = false)\nReassign to next agent (WRR)"]
+    Cooldown --> Assign
+    
+    Reassign -->|"No"| Escalate["🚨 ESCALATED\n(Manual Manager Queue)"]
 ```
 
 ---
@@ -150,25 +117,17 @@ stateDiagram-v2
 A background worker runs every **10 seconds** scanning for assigned leads past their SLA deadline.
 
 ```mermaid
-flowchart LR
-    A["⏰ SLA Worker Tick (10s)"] --> B["Query: ASSIGNED leads where sla_expires_at ≤ NOW"]
-    B --> C{"Breached Leads Found?"}
-    C -->|"No"| D["Sleep 10s"]
-    C -->|"Yes"| E["For each breached lead:"]
-    E --> F["1. Flag sla_violated = true"]
-    F --> G["2. Penalize agent → is_active = false"]
-    G --> H{"reassignment_count < 3?"}
-    H -->|"Yes"| I["3a. Reassign via WRR\n+ increment count\n+ new SLA timer"]
-    H -->|"No"| J["3b. Escalate lead\n+ unassign agent\n+ clear SLA"]
-    I --> K["Write REASSIGN audit log"]
-    J --> L["Write ESCALATE audit log"]
-    K --> D
-    L --> D
+flowchart TD
+    A["⏰ SLA Worker Tick (10s)"] --> B["Identify Expired Leads"]
+    B --> C["Disable Breaching Agent (is_active = false)"]
+    C --> D{"Reassignments < 3?"}
+    D -->|"Yes"| E["Route to Next Agent (WRR)\nReset SLA Timer\nLog REASSIGN"]
+    D -->|"No"| F["Mark ESCALATED\nUnassign Lead\nLog ESCALATE"]
 
-    style A fill:#1a1a2e,stroke:#e94560,color:#fff
-    style G fill:#e36414,stroke:#f77f00,color:#fff
-    style J fill:#9d0208,stroke:#d00000,color:#fff
-    style I fill:#1b4332,stroke:#2d6a4f,color:#fff
+    style A fill:#0f172a,stroke:#3b82f6,color:#fff
+    style C fill:#1e293b,stroke:#4f46e5,color:#fff
+    style E fill:#14532d,stroke:#22c55e,color:#fff
+    style F fill:#7f1d1d,stroke:#ef4444,color:#fff
 ```
 
 ### SLA Deadlines by Priority
@@ -187,63 +146,19 @@ This is how a user interacts with LeadFlow from initial setup through daily oper
 
 ```mermaid
 flowchart TD
-    subgraph Step1["Step 1 — Setup"]
-        S1A["Clone repo & install deps"]
-        S1B["Run seed script\n→ 10 agents + 100 leads"]
-        S1C["Start backend :8000\nStart frontend :3000"]
-        S1A --> S1B --> S1C
-    end
+    Setup["⚙️ Step 1: System Setup\n(Clone repo, install deps, run seed script)"]
+    Dashboard["📊 Step 2: Dashboard Overview\n(Monitor real-time metrics, loads & live audit logs)"]
+    Leads["📁 Step 3: Lead Management\n(Search, filter, and view detailed lead timelines)"]
+    Agents["👥 Step 4: Team Operations\n(Adjust shift hours, routing weights & availability)"]
+    Enforce["🤖 Step 5: SLA & Automation\n(Automated background routing, penalties & escalations)"]
 
-    subgraph Step2["Step 2 — Dashboard Overview"]
-        S2A["Open /dashboard"]
-        S2B["View KPI cards:\nTotal Leads · Active Agents\nSLA Violations · Conversion Rate"]
-        S2C["Monitor Agent Load bars"]
-        S2D["Watch Live Activity Feed"]
-        S2A --> S2B --> S2C --> S2D
-    end
+    Setup --> Dashboard --> Leads --> Agents --> Enforce
 
-    subgraph Step3["Step 3 — Lead Management"]
-        S3A["Navigate to /leads"]
-        S3B["Search by name, email, phone"]
-        S3C["Filter by Priority or Status"]
-        S3D["Sort by created date or priority"]
-        S3E["Click a lead → /lead/[id]"]
-        S3A --> S3B --> S3C --> S3D --> S3E
-    end
-
-    subgraph Step4["Step 4 — Lead Detail & Actions"]
-        S4A["View lead info + SLA countdown"]
-        S4B["Read full audit timeline"]
-        S4C["Update status:\nCONTACTED → IN_PROGRESS"]
-        S4D["Manual reassign to another agent"]
-        S4A --> S4B --> S4C --> S4D
-    end
-
-    subgraph Step5["Step 5 — Agent Management"]
-        S5A["Navigate to /agents"]
-        S5B["View each agent's active load"]
-        S5C["Toggle agent active/inactive"]
-        S5D["Adjust WRR weight (0–10)"]
-        S5E["Set shift hours & timezone"]
-        S5A --> S5B --> S5C --> S5D --> S5E
-    end
-
-    subgraph Step6["Step 6 — Automated Enforcement"]
-        S6A["SLA Worker runs in background"]
-        S6B["Breached leads auto-reassigned"]
-        S6C["Negligent agents auto-penalized"]
-        S6D["3x breach → lead escalated"]
-        S6A --> S6B --> S6C --> S6D
-    end
-
-    Step1 --> Step2 --> Step3 --> Step4 --> Step5 --> Step6
-
-    style Step1 fill:#0d1b2a,stroke:#1b263b,color:#e0e1dd
-    style Step2 fill:#1b263b,stroke:#415a77,color:#e0e1dd
-    style Step3 fill:#415a77,stroke:#778da9,color:#e0e1dd
-    style Step4 fill:#16213e,stroke:#0f3460,color:#e0e1dd
-    style Step5 fill:#0f3460,stroke:#533483,color:#e0e1dd
-    style Step6 fill:#533483,stroke:#e94560,color:#e0e1dd
+    style Setup fill:#0f172a,stroke:#3b82f6,color:#fff
+    style Dashboard fill:#1e293b,stroke:#4f46e5,color:#fff
+    style Leads fill:#312e81,stroke:#6366f1,color:#fff
+    style Agents fill:#1e1b4b,stroke:#818cf8,color:#fff
+    style Enforce fill:#581c87,stroke:#c084fc,color:#fff
 ```
 
 ---
@@ -352,15 +267,15 @@ python scripts/run_scenarios.py
 ```
 
 ```mermaid
-flowchart LR
-    T1["Scenario 1\nWRR Routing"] --> T2["Scenario 2\nDuplicate Bypass"]
-    T2 --> T3["Scenario 3\nSLA Breach + Cooldown"]
-    T3 --> T4["Scenario 4\nHard Escalation"]
+flowchart TD
+    T1["Scenario 1: Weighted Round Robin Routing"] --> T2["Scenario 2: Duplicate Route-to-Owner Bypass"]
+    T2 --> T3["Scenario 3: SLA Breach & Agent Cooldown"]
+    T3 --> T4["Scenario 4: Hard Escalation Limit (3 Reassignments)"]
 
-    style T1 fill:#1b4332,stroke:#2d6a4f,color:#fff
-    style T2 fill:#0f3460,stroke:#533483,color:#fff
-    style T3 fill:#e36414,stroke:#f77f00,color:#fff
-    style T4 fill:#9d0208,stroke:#d00000,color:#fff
+    style T1 fill:#14532d,stroke:#22c55e,color:#fff
+    style T2 fill:#1e3a8a,stroke:#3b82f6,color:#fff
+    style T3 fill:#7c2d12,stroke:#ea580c,color:#fff
+    style T4 fill:#7f1d1d,stroke:#ef4444,color:#fff
 ```
 
 | # | Scenario | What It Validates |
